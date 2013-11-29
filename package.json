@@ -1,0 +1,22 @@
+{
+  "name": "selenium",
+  "version": "0.0.0",
+  "description": "Tool to install and run selenium and webdriver",
+  "main": "index.js",
+  "directories": {
+    "test": "test"
+  },
+  "scripts": {
+    "test": "make test"
+  },
+  "repository": "",
+  "author": "",
+  "license": "BSD",
+  "dependencies": {
+    "mocha": "~1.14.0",
+    "chai": "~1.8.1",
+    "debug": "~0.7.4",
+    "shelljs": "~0.2.6",
+    "async": "~0.2.9"
+  }
+}
