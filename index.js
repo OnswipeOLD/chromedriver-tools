@@ -1,1 +1,4 @@
-module.exports = require('./lib/selenium-tools');
+module.exports = {
+  check: require('./lib/check'),
+  install: require('./lib/install')
+};

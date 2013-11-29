@@ -4,7 +4,6 @@ var tools = require('../index');
 var shell = require('shelljs');
 
 var tmpDir = __dirname + '/../tmp';
-var otherDir = __dirname + '/../selenium';
 
 describe('Selenium Tools', function() {
   it('should exist', function() {
@@ -14,24 +13,17 @@ describe('Selenium Tools', function() {
   describe('Install', function() {
     this.timeout(1000 * 60);
 
-    before(cleanUp);
-    after(cleanUp);
+    before(cleanup);
+    after(cleanup);
 
     it('should exist', function() {
       expect(tools).to.respondTo('install');
     });
 
-    it('should download selenium jar to default directory', function(done) {
+    it('should download selenium jar to tmp directory', function(done) {
       tools.install(function() {
         expect(shell.test('-f', tmpDir + '/selenium.jar')).to.be.true;
-        done();
-      });
-    });
-
-    it('should download selenium jar to specified directory', function(done) {
-      tools.install(otherDir, function() {
-        expect(shell.test('-f', otherDir + '/selenium.jar')).to.be.true;
-        done();
+        cleanup(done);
       });
     });
 
@@ -39,12 +31,36 @@ describe('Selenium Tools', function() {
       tools.install(function() {
         expect(shell.test('-f', tmpDir + '/chromedriver')).to.be.true;
         expect(shell.test('-f', tmpDir + '/chrome_driver.zip')).to.be.false;
+        cleanup(done);
+      });
+    });
+  });
+
+  describe('Check', function() {
+    before(cleanup);
+    after(cleanup);
+
+    it('should exist', function() {
+      expect(tools).to.respondTo('check');
+    });
+
+    it('should return false if Selenium and Chrome are not installed', function() {
+      expect(tools.check()).to.be.false;
+    });
+
+    it('should be true if Selenium and Chrome Driver are installed', function(done) {
+      tools.install(function() {
+        expect(tools.check()).to.be.true;
         done();
       });
     });
   });
+
 });
 
-function cleanUp() {
-  shell.rm('-Rf', [tmpDir, otherDir]);
+function cleanup(cb) {
+  shell.rm('-Rf', [tmpDir]);
+  if (cb) {
+    cb();
+  }
 }
