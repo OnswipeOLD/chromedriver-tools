@@ -1,9 +1,14 @@
+/*jshint expr:true */
 require('./helper.setup');
 var debug = require('debug')('test:selenium-tools');
 var tools = require('../index');
 var shell = require('shelljs');
+var wd = require('wd');
 
 var tmpDir = __dirname + '/../tmp';
+var browser;
+var server;
+var deathEvents = ['SIGTERM', 'SIGINT', 'SIGHUP'];
 
 describe('Selenium Tools', function() {
   it('should exist', function() {
@@ -56,6 +61,56 @@ describe('Selenium Tools', function() {
     });
   });
 
+  describe('Server', function() {
+    before(function () {
+      browser = wd.remote();
+      deathEvents.forEach(function(signal) {
+        process.on(signal, stopServer);
+      });
+    });
+
+    after(function() {
+      stopServer();
+      cleanup();
+    });
+
+    it('should exist', function() {
+      expect(tools).to.respondTo('start');
+    });
+
+    it('should error if selenium server is not installed', function() {
+      tools.start(function(err) {
+        expect(err).to.be.an.instanceOf(Error);
+        expect(err).to.have.property('message', 'Please install Selenium server and Chrome driver first');
+      });
+    });
+
+    it('should start selenium with chromeDriver', function(done) {
+      this.timeout(1000 * 60 * 2);
+      tools.install(function() {
+        expect(tools.check()).to.be.true;
+        server = tools.start();
+        server.once('ready', function() {
+          browser.init({browserName: 'chrome'}, function(err) {
+            expect(err).to.not.exist;
+            browser.quit(done);
+            browser = undefined;
+          });
+        });
+      });
+    });
+
+    it('should error if already running', function(done) {
+      otherServer = tools.start();
+      otherServer.once('error', function(err) {
+        expect(err).to.exist;
+        expect(err).to.be.an.instanceOf(Error);
+        expect(err).to.have.property('message', 'Selenium is already running');
+        done();
+      });
+    });
+  });
+
 });
 
 function cleanup(cb) {
@@ -63,4 +118,12 @@ function cleanup(cb) {
   if (cb) {
     cb();
   }
+}
+
+function stopServer() {
+  server && server.kill();
+  browser && browser.quit();
+  deathEvents.forEach(function(signal) {
+    process.removeListener(signal, stopServer);
+  });
 }
