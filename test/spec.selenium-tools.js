@@ -15,29 +15,30 @@ describe('Selenium Tools', function() {
     expect(tools).to.exist;
   });
 
+  before(function(done) {
+    cleanup(done);
+  });
+
+  after(function(done) {
+    cleanup(done);
+  });
+
   describe('Install', function() {
     this.timeout(1000 * 60);
 
-    before(cleanup);
-    after(cleanup);
-
-    it('should exist', function() {
-      expect(tools).to.respondTo('install');
+    before(function(done) {
+      tools.install(done);
     });
 
     it('should download selenium jar to tmp directory', function(done) {
-      tools.install(function() {
-        expect(shell.test('-f', tmpDir + '/selenium.jar')).to.be.true;
-        cleanup(done);
-      });
+      expect(shell.test('-f', tmpDir + '/selenium.jar')).to.be.true;
+      done();
     });
 
     it('should download and unzip Chrome Driver', function(done) {
-      tools.install(function() {
-        expect(shell.test('-f', tmpDir + '/chromedriver')).to.be.true;
-        expect(shell.test('-f', tmpDir + '/chrome_driver.zip')).to.be.false;
-        cleanup(done);
-      });
+      expect(shell.test('-f', tmpDir + '/chromedriver')).to.be.true;
+      expect(shell.test('-f', tmpDir + '/chrome_driver.zip')).to.be.false;
+      done();
     });
   });
 
@@ -86,15 +87,22 @@ describe('Selenium Tools', function() {
     });
 
     it('should start selenium with chromeDriver', function(done) {
-      this.timeout(1000 * 60 * 2);
+      this.timeout(1000 * 60 * 5);
       tools.install(function() {
         expect(tools.check()).to.be.true;
         server = tools.start();
         server.once('ready', function() {
-          browser.init({browserName: 'chrome'}, function(err) {
+          browser.init({
+            browserName: 'chrome',
+            chromeOptions: {
+              binary: '/Applications/Google\ Chrome\ Canary.app/Contents/MacOS/Google\ Chrome\ Canary'
+            }
+          }, function(err) {
             expect(err).to.not.exist;
-            browser.quit(done);
-            browser = undefined;
+            browser.get('http://onswipe.com', function() {
+              browser.quit(done);
+              browser = undefined;
+            });
           });
         });
       });
