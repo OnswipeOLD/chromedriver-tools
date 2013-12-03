@@ -4,6 +4,7 @@ var debug = require('debug')('test:selenium-tools');
 var tools = require('../index');
 var shell = require('shelljs');
 var wd = require('wd');
+var async = require('async');
 
 var tmpDir = __dirname + '/../tmp';
 var browser;
@@ -15,20 +16,15 @@ describe('Selenium Tools', function() {
     expect(tools).to.exist;
   });
 
-  before(function(done) {
-    cleanup(done);
-  });
+  before(cleanup);
 
-  after(function(done) {
-    cleanup(done);
-  });
+  after(cleanup);
 
   describe('Install', function() {
     this.timeout(1000 * 60);
 
-    before(function(done) {
-      tools.install(done);
-    });
+    before(tools.install);
+    after(cleanup);
 
     it('should download selenium jar to tmp directory', function(done) {
       expect(shell.test('-f', tmpDir + '/selenium.jar')).to.be.true;
@@ -70,51 +66,79 @@ describe('Selenium Tools', function() {
       });
     });
 
-    after(function() {
-      stopServer();
-      cleanup();
-    });
+    after(stopServer);
 
     it('should exist', function() {
-      expect(tools).to.respondTo('start');
+      expect(tools).to.have.property('server');
     });
 
-    it('should error if selenium server is not installed', function() {
-      tools.start(function(err) {
-        expect(err).to.be.an.instanceOf(Error);
-        expect(err).to.have.property('message', 'Please install Selenium server and Chrome driver first');
+    describe('start', function() {
+      it('should exist', function() {
+        expect(tools.server).to.respondTo('start');
       });
-    });
 
-    it('should start selenium with chromeDriver', function(done) {
-      this.timeout(1000 * 60 * 5);
-      tools.install(function() {
-        expect(tools.check()).to.be.true;
-        server = tools.start();
-        server.once('ready', function() {
-          browser.init({
-            browserName: 'chrome',
-            chromeOptions: {
-              binary: '/Applications/Google\ Chrome\ Canary.app/Contents/MacOS/Google\ Chrome\ Canary'
-            }
-          }, function(err) {
-            expect(err).to.not.exist;
-            browser.get('http://onswipe.com', function() {
-              browser.quit(done);
-              browser = undefined;
-            });
-          });
+      it('should error if selenium server is not installed', function(done) {
+        tools.server.start(function(err) {
+          expect(err).to.be.an.instanceOf(Error);
+          expect(err).to.have.property('message', 'Please install Selenium server and Chrome driver first');
+          done();
+        });
+      });
+
+      it('should start selenium with chromeDriver', function(done) {
+        this.timeout(1000 * 10);
+        async.series([
+          tools.install,
+          function(callback) {
+            server = tools.server.start();
+            server.once('ready', callback);
+          },
+          function(callback) {
+            var options = {
+              browserName: 'chrome',
+              chromeOptions: {
+                binary: '/Applications/Google\ Chrome\ Canary.app/Contents/MacOS/Google\ Chrome\ Canary'
+              }
+            };
+
+            browser.init(options, callback);
+          },
+          function(callback) {
+            browser.get('http://google.com', callback);
+          },
+          function(callback) {
+            browser.quit(callback);
+            browser = undefined;
+          }
+        ], done);
+      });
+
+      it('should error if already running', function(done) {
+        otherServer = tools.server.start();
+        otherServer.once('error', function(err) {
+          expect(err).to.exist;
+          expect(err).to.be.an.instanceOf(Error);
+          expect(err).to.have.property('message', 'Selenium is already running');
+          done();
         });
       });
     });
 
-    it('should error if already running', function(done) {
-      otherServer = tools.start();
-      otherServer.once('error', function(err) {
-        expect(err).to.exist;
-        expect(err).to.be.an.instanceOf(Error);
-        expect(err).to.have.property('message', 'Selenium is already running');
-        done();
+    describe('Stop', function () {
+      it('should exist', function() {
+        expect(tools.server).to.respondTo('stop');
+      });
+
+      it('should stop selenium server', function(done) {
+        var cmd = 'ps aux | grep -v grep | grep selenium.jar';
+        var running = shell.exec(cmd, {silent:true}).output;
+        expect(running.indexOf('selenium.jar') > -1).to.be.true;
+        tools.server.stop(function() {
+          running = shell.exec(cmd, {silent:true}).output;
+          debug('should be stopped', running);
+          expect(running.indexOf('selenium.jar') > -1).to.be.false;
+          done();
+        });
       });
     });
   });
@@ -128,10 +152,14 @@ function cleanup(cb) {
   }
 }
 
-function stopServer() {
+function stopServer(cb) {
   server && server.kill();
   browser && browser.quit();
   deathEvents.forEach(function(signal) {
     process.removeListener(signal, stopServer);
   });
+
+  if (cb) {
+    cb();
+  }
 }
