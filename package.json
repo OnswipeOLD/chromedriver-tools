@@ -1,7 +1,7 @@
 {
-  "name": "selenium",
+  "name": "chromedriver-tools",
   "version": "0.0.0",
-  "description": "Tool to install and run selenium and webdriver",
+  "description": "Tools for managing selenium and chromedriver",
   "main": "index.js",
   "directories": {
     "test": "test"
@@ -9,8 +9,8 @@
   "scripts": {
     "test": "make test"
   },
-  "repository": "",
-  "author": "",
+  "repository": "git@github.com:Onswipe/chromedriver-tools.git",
+  "author": "Juan Pablo Buritica <buritica@gmail.com>",
   "license": "BSD",
   "dependencies": {
     "mocha": "~1.14.0",
