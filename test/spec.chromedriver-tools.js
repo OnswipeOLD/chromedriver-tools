@@ -18,7 +18,10 @@ describe('Selenium Tools', function() {
 
   before(cleanup);
 
-  after(cleanup);
+  after(function(done) {
+    cleanup();
+    stopServer(done);
+  });
 
   describe('Install', function() {
     this.timeout(1000 * 60);
@@ -40,19 +43,34 @@ describe('Selenium Tools', function() {
 
   describe('Check', function() {
     before(cleanup);
-    after(cleanup);
+    after(function() {
+      cleanup();
+      stopServer();
+    });
 
     it('should exist', function() {
       expect(tools).to.respondTo('check');
     });
 
-    it('should return false if Selenium and Chrome are not installed', function() {
-      expect(tools.check()).to.be.false;
+    it('should return false if Chromedriver and dependencies are not installed', function() {
+      expect(tools.check('installed')).to.be.false;
     });
 
-    it('should be true if Selenium and Chrome Driver are installed', function(done) {
+    it('should be true if Chromedriver and dependencies are installed', function(done) {
       tools.install(function() {
-        expect(tools.check()).to.be.true;
+        expect(tools.check('installed')).to.be.true;
+        done();
+      });
+    });
+
+    it('should return false if Chromedriver is not running', function() {
+      expect(tools.check('running')).to.be.false;
+    });
+
+    it('should return true if Chromedriver is running', function(done) {
+      tools.server.start(function(err, chromedriver) {
+        server = chromedriver;
+        expect(tools.check('running')).to.be.true;
         done();
       });
     });
@@ -90,15 +108,15 @@ describe('Selenium Tools', function() {
         async.series([
           tools.install,
           function(callback) {
-            server = tools.server.start();
-            server.once('ready', callback);
+            tools.server.start(function(err, chromedriver){
+              expect(err).to.not.exist;
+              server = chromedriver;
+              callback();
+            });
           },
           function(callback) {
             var options = {
-              browserName: 'chrome',
-              chromeOptions: {
-                binary: '/Applications/Google\ Chrome\ Canary.app/Contents/MacOS/Google\ Chrome\ Canary'
-              }
+              browserName: 'chrome'
             };
 
             browser.init(options, callback);
@@ -110,15 +128,15 @@ describe('Selenium Tools', function() {
             browser.quit(callback);
             browser = undefined;
           }
-        ], done);
+        ],
+        done);
       });
 
-      it('should error if already running', function(done) {
-        otherServer = tools.server.start();
-        otherServer.once('error', function(err) {
-          expect(err).to.exist;
-          expect(err).to.be.an.instanceOf(Error);
-          expect(err).to.have.property('message', 'Selenium is already running');
+      it('should return itself if chromedriver is already running, and its the same instance', function(done) {
+        tools.server.start(function(err, chromedriver2) {
+          expect(err).to.not.exist;
+          expect(chromedriver2).to.exist;
+          expect(chromedriver2).to.equal(server);
           done();
         });
       });
@@ -145,6 +163,8 @@ describe('Selenium Tools', function() {
 
 });
 
+
+
 function cleanup(cb) {
   shell.rm('-Rf', [tmpDir]);
   if (cb) {
@@ -158,6 +178,9 @@ function stopServer(cb) {
   deathEvents.forEach(function(signal) {
     process.removeListener(signal, stopServer);
   });
+
+  server = null;
+  browser = null;
 
   if (cb) {
     cb();
