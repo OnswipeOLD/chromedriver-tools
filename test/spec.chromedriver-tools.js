@@ -1,6 +1,6 @@
 /*jshint expr:true */
 require('./helper.setup');
-var debug = require('debug')('test:selenium-tools');
+var debug = require('debug')('test:chromedriver-tools');
 var tools = require('../index');
 var shell = require('shelljs');
 var wd = require('wd');
@@ -18,10 +18,7 @@ describe('Selenium Tools', function() {
 
   before(cleanup);
 
-  after(function(done) {
-    cleanup();
-    stopServer(done);
-  });
+  after(stopServer);
 
   describe('Install', function() {
     this.timeout(1000 * 60);
@@ -43,10 +40,7 @@ describe('Selenium Tools', function() {
 
   describe('Check', function() {
     before(cleanup);
-    after(function() {
-      cleanup();
-      stopServer();
-    });
+    after(stopServer);
 
     it('should exist', function() {
       expect(tools).to.respondTo('check');
@@ -68,7 +62,7 @@ describe('Selenium Tools', function() {
     });
 
     it('should return true if Chromedriver is running', function(done) {
-      tools.server.start(function(err, chromedriver) {
+      tools.server.start(null, function(err, chromedriver) {
         server = chromedriver;
         expect(tools.check('running')).to.be.true;
         done();
@@ -82,6 +76,7 @@ describe('Selenium Tools', function() {
       deathEvents.forEach(function(signal) {
         process.on(signal, stopServer);
       });
+      cleanup();
     });
 
     after(stopServer);
@@ -95,23 +90,30 @@ describe('Selenium Tools', function() {
         expect(tools.server).to.respondTo('start');
       });
 
-      it('should error if selenium server is not installed', function(done) {
-        tools.server.start(function(err) {
-          expect(err).to.be.an.instanceOf(Error);
-          expect(err).to.have.property('message', 'Please install Selenium server and Chrome driver first');
-          done();
+      it('should install Selenium and Chromedriver if its not installed, before starting', function(done) {
+        this.timeout(1000 * 10);
+        expect(shell.test('-f', tmpDir + '/chromedriver')).to.be.false;
+        expect(shell.test('-f', tmpDir + '/chrome_driver.zip')).to.be.false;
+        debug('starting');
+        tools.server.start(null, function(err, chromedriver) {
+          debug('started');
+          expect(err).to.not.exist;
+          expect(shell.test('-f', tmpDir + '/selenium.jar')).to.be.true;
+          expect(shell.test('-f', tmpDir + '/chromedriver')).to.be.true;
+          expect(chromedriver).to.exist;
+          server = chromedriver;
+          stopServer(done);
         });
       });
 
-      it('should start selenium with chromeDriver', function(done) {
+      it('should start Selenium with Chromedriver', function(done) {
         this.timeout(1000 * 10);
         async.series([
-          tools.install,
           function(callback) {
-            tools.server.start(function(err, chromedriver){
+            tools.server.start(null, function(err, chromedriver){
               expect(err).to.not.exist;
               server = chromedriver;
-              callback();
+              callback(null);
             });
           },
           function(callback) {
@@ -133,16 +135,17 @@ describe('Selenium Tools', function() {
       });
 
       it('should return itself if chromedriver is already running, and its the same instance', function(done) {
-        tools.server.start(function(err, chromedriver2) {
+        tools.server.start(null, function(err, chromedriver2) {
           expect(err).to.not.exist;
           expect(chromedriver2).to.exist;
-          expect(chromedriver2).to.equal(server);
+          expect(chromedriver2).to.respondTo('once');
           done();
         });
       });
     });
 
     describe('Stop', function () {
+      after(cleanup);
       it('should exist', function() {
         expect(tools.server).to.respondTo('stop');
       });
@@ -164,7 +167,6 @@ describe('Selenium Tools', function() {
 });
 
 
-
 function cleanup(cb) {
   shell.rm('-Rf', [tmpDir]);
   if (cb) {
@@ -173,16 +175,12 @@ function cleanup(cb) {
 }
 
 function stopServer(cb) {
-  server && server.kill();
   browser && browser.quit();
   deathEvents.forEach(function(signal) {
     process.removeListener(signal, stopServer);
   });
-
-  server = null;
-  browser = null;
-
-  if (cb) {
+  tools.server.stop(function() {
+    debug('stopped', arguments);
     cb();
-  }
+  });
 }
